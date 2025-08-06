@@ -1,13 +1,22 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Navigation from "./components/Navigation";
 import Toast from "./components/Toast";
 import ConfirmationModal from "./components/ConfirmationModal";
 import LandingPage from "./pages/LandingPage";
+import AOS from "aos";
+import "aos/dist/aos.css";
 
 const App = () => {
   const [isDetecting, setIsDetecting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  useEffect(() => {
+    AOS.init({
+      duration: 700,
+      easing: "ease-in-out",
+    });
+  }, []);
 
   const handleStartDetection = () => {
     setShowConfirmation(true);

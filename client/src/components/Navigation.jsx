@@ -110,7 +110,7 @@ const Navigation = () => {
       {/* Desktop navbar */}
       <nav className="hidden md:flex fixed top-0 w-full bg-white/95 backdrop-blur-xl z-40 border-b border-gray-200/50 shadow-sm shadow-gray-100/50">
         <div className="container mx-auto lg:px-20 md:px-12 px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-20 gap-3">
             <div className="flex items-center gap-3 group">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-teal-400 to-green-500 rounded-full opacity-75 group-hover:opacity-100 transition-opacity"></div>
@@ -122,13 +122,13 @@ const Navigation = () => {
                 SafeDrive
               </span>
             </div>
-            <div className="flex items-center gap-1 bg-gray-50/80 rounded-full px-4 py-2 backdrop-blur-sm border border-gray-200/50">
-              {sections.map(({ id, label }) => (
+            <div className="flex items-center gap-2 bg-gray-50/80 rounded-full px-4 py-2 backdrop-blur-sm border border-gray-200/50">
+              {sections.map(({ id, label, icon: Icon }) => (
                 <a
                   key={id}
                   href={`#${id}`}
                   onClick={(e) => handleNavClick(e, id)}
-                  className={`relative px-6 py-3 text-sm font-medium rounded-full transition-all duration-300 cursor-pointer group ${
+                  className={`relative px-6 py-3 text-sm font-medium rounded-full transition-all duration-300 cursor-pointer group flex items-center gap-2 ${
                     activeSection === id
                       ? "text-white shadow-lg"
                       : "text-gray-600 hover:text-teal-600 hover:bg-white/50"
@@ -137,6 +137,12 @@ const Navigation = () => {
                   {activeSection === id && (
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-green-500 rounded-full shadow-lg"></div>
                   )}
+                  <Icon
+                    size={18}
+                    className={`relative z-10 transition-colors duration-300 ${
+                      activeSection === id ? "text-white" : "text-teal-700"
+                    }`}
+                  />
                   <span className="relative z-10">{label}</span>
                   {activeSection !== id && (
                     <div className="absolute inset-0 bg-white/0 group-hover:bg-white/50 rounded-full transition-all duration-300"></div>
@@ -150,31 +156,46 @@ const Navigation = () => {
 
       {/* Mobile floating nav at bottom */}
       <nav
-        className={`md:hidden fixed border border-teal-600 bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-white/80 backdrop-blur-md shadow-lg rounded-full px-6 py-2 flex justify-between w-[90%] max-w-sm transition-all duration-500 ease-in-out ${
+        className={`md:hidden fixed border border-teal-600 bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-white/80 backdrop-blur-md shadow-md rounded-full px-4 py-2 w-[90%] max-w-sm transition-all duration-500 ease-in-out flex items-center ${
           isMobileNavVisible
             ? "translate-y-0 opacity-100"
             : "translate-y-16 opacity-0 pointer-events-none"
         }`}
-        onTouchStart={() => {
-          setIsMobileNavVisible(true);
-          // Clear any existing timeout when user touches
-        }}
-        onMouseEnter={() => {
-          setIsMobileNavVisible(true);
-          // Clear any existing timeout when user hovers
-        }}
+        onTouchStart={() => setIsMobileNavVisible(true)}
+        onMouseEnter={() => setIsMobileNavVisible(true)}
       >
         {sections.map(({ id, icon: Icon, label }) => (
           <a
             key={id}
             href={`#${id}`}
             onClick={(e) => handleNavClick(e, id)}
-            className={`flex flex-col items-center text-xs cursor-pointer ${
-              activeSection === id ? "text-teal-600" : "text-gray-500"
-            } hover:text-teal-500 transition-colors`}
+            className={`relative flex flex-1 flex-col items-center justify-center text-xs cursor-pointer py-2 rounded-full transition-all duration-300 ${
+              activeSection === id
+                ? "text-white"
+                : "text-gray-500 hover:text-teal-500"
+            }`}
           >
-            <Icon size={20} />
-            <span className="text-[10px]">{label}</span>
+            {/* Background gradient for active state */}
+            {activeSection === id && (
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-green-500 rounded-full shadow-md"></div>
+            )}
+
+            {/* Icon */}
+            <Icon
+              size={16}
+              className={`relative z-10 mb-0.5 ${
+                activeSection === id ? "text-white" : ""
+              }`}
+            />
+
+            {/* Label */}
+            <span
+              className={`text-[9px] relative z-10 leading-tight ${
+                activeSection === id ? "text-white" : ""
+              }`}
+            >
+              {label}
+            </span>
           </a>
         ))}
       </nav>

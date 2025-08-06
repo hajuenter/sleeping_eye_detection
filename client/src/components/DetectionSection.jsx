@@ -7,7 +7,7 @@ const DetectionSection = ({ isDetecting, onToggleDetection }) => {
   return (
     <section id="detection" className="pb-20 pt-10 bg-white">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
+        <div className="text-center mb-10" data-aos="fade-up">
           <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
             Live Detection
           </h2>
@@ -17,7 +17,12 @@ const DetectionSection = ({ isDetecting, onToggleDetection }) => {
           </p>
         </div>
 
-        <div className="max-w-4xl mx-auto">
+        <div
+          className="max-w-4xl mx-auto"
+          data-aos="fade-up"
+          data-aos-delay="500"
+          data-aos-offset="100"
+        >
           <div className="bg-gray-100 rounded-2xl p-8 shadow-xl">
             <div className="aspect-video bg-gray-800 rounded-xl mb-6 flex items-center justify-center relative overflow-hidden">
               {isDetecting ? (
@@ -51,14 +56,29 @@ const DetectionSection = ({ isDetecting, onToggleDetection }) => {
             <div className="text-center">
               <button
                 onClick={onToggleDetection}
-                className={`px-8 py-4 rounded-full text-lg font-semibold transition-all duration-300 shadow-lg flex items-center gap-3 mx-auto ${
-                  isDetecting
-                    ? "bg-red-500 hover:bg-red-600 text-white"
-                    : "bg-teal-500 hover:bg-teal-600 text-white"
-                }`}
+                className="group relative bg-gradient-to-r from-cyan-400 to-teal-500 text-white px-10 py-5 rounded-full text-lg font-semibold hover:from-cyan-300 hover:to-teal-400 hover:scale-105 transition-all duration-300 shadow-2xl shadow-cyan-500/25 flex items-center gap-3 mx-auto overflow-hidden"
               >
-                {isDetecting ? <Pause size={24} /> : <Play size={24} />}
-                {isDetecting ? "Stop Detection" : "Start Detection"}
+                {/* Background Glow Effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-teal-500 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300"></div>
+
+                {/* Button Content */}
+                <div className="relative flex items-center gap-3">
+                  {isDetecting ? (
+                    <Pause
+                      size={24}
+                      className="group-hover:rotate-12 transition-transform duration-300"
+                    />
+                  ) : (
+                    <Play
+                      size={24}
+                      className="group-hover:rotate-12 transition-transform duration-300"
+                    />
+                  )}
+                  {isDetecting ? "Stop Detection" : "Start Detection"}
+                </div>
+
+                {/* Shimmer Effect */}
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"></div>
               </button>
             </div>
           </div>
