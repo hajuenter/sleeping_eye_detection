@@ -5,7 +5,12 @@ import DetectionSection from "../components/DetectionSection";
 import BenefitsSection from "../components/BenefitsSection";
 import Footer from "../components/Footer";
 
-const LandingPage = ({ isDetecting, onToggleDetection, onStartDetection }) => {
+const LandingPage = ({
+  isDetecting,
+  onToggleDetection,
+  onStartDetection,
+  onSummaryReceived,
+}) => {
   return (
     <>
       <HeroSection onStartDetection={onStartDetection} />
@@ -13,6 +18,7 @@ const LandingPage = ({ isDetecting, onToggleDetection, onStartDetection }) => {
       <DetectionSection
         isDetecting={isDetecting}
         onToggleDetection={onToggleDetection}
+        onSummaryReceived={onSummaryReceived}
       />
       <BenefitsSection />
       <Footer />

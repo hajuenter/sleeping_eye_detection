@@ -1,11 +1,241 @@
-import React, { useRef } from "react";
-import { Camera, Play, Pause } from "lucide-react";
+import React, { useRef, useEffect, useState } from "react";
+import { Camera, Play, Pause, Clock, Eye, EyeOff } from "lucide-react";
+import { getSessionId } from "../utils/session";
+import { buildApiUrl, API_ENDPOINTS } from "../config/api";
+import axios from "axios";
 
-const DetectionSection = ({ isDetecting, onToggleDetection }) => {
+const DetectionSection = ({
+  isDetecting,
+  onToggleDetection,
+  onSummaryReceived,
+}) => {
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const intervalRef = useRef(null);
+  const audioRef = useRef(null);
+
+  const [detectionTime, setDetectionTime] = useState(0);
+  const [currentStatus, setCurrentStatus] = useState("Not Started");
+  const [closedEyeCount, setClosedEyeCount] = useState(0);
+  const [isAlarming, setIsAlarming] = useState(false);
+  const [summary, setSummary] = useState(null);
+
+  // Timer untuk menghitung waktu deteksi
+  useEffect(() => {
+    let timer = null;
+    if (isDetecting) {
+      timer = setInterval(() => {
+        setDetectionTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setDetectionTime(0);
+      setClosedEyeCount(0);
+      setCurrentStatus("Not Started");
+      setIsAlarming(false);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isDetecting]);
+
+  // Inisialisasi kamera dan mulai deteksi
+  useEffect(() => {
+    if (isDetecting) {
+      startCamera();
+      startDetection();
+    } else {
+      stopCamera();
+      stopDetection();
+      if (detectionTime > 0) {
+        fetchSummary();
+      }
+    }
+
+    return () => {
+      stopCamera();
+      stopDetection();
+    };
+  }, [isDetecting]);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const startDetection = () => {
+    // Kirim gambar ke backend setiap 1 detik
+    intervalRef.current = setInterval(() => {
+      captureAndSendImage();
+    }, 1000);
+  };
+
+  const stopDetection = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    stopAlarm();
+  };
+
+  const captureAndSendImage = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+
+    ctx.drawImage(videoRef.current, 0, 0);
+
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) return;
+
+        const formData = new FormData();
+        formData.append("image", blob, "frame.jpg");
+
+        try {
+          const sessionId = getSessionId();
+          const apiUrl = buildApiUrl(API_ENDPOINTS.DETECT, {
+            session_id: sessionId,
+          });
+
+          const response = await axios.post(apiUrl, formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+            timeout: 10000, // 10 second timeout for detection requests
+          });
+
+          processDetectionResult(response.data);
+        } catch (error) {
+          console.error("Error sending image:", error);
+          // Don't show error to user for individual frame failures
+          // Just log and continue
+        }
+      },
+      "image/jpeg",
+      0.8
+    );
+  };
+
+  const processDetectionResult = (data) => {
+    const results = data.results || [];
+    const hasClosedEyes = results.some((result) => result.class === "closed");
+
+    if (hasClosedEyes) {
+      setCurrentStatus("Drowsy - Eyes Closed");
+      setClosedEyeCount((prev) => {
+        const newCount = prev + 1;
+        // Jika mata tertutup selama 5 detik berturut-turut, trigger alarm
+        if (newCount >= 5 && !isAlarming) {
+          startAlarm();
+        }
+        return newCount;
+      });
+    } else {
+      setCurrentStatus("Alert - Eyes Open");
+      setClosedEyeCount(0);
+      if (isAlarming) {
+        stopAlarm();
+      }
+    }
+  };
+
+  const startAlarm = () => {
+    setIsAlarming(true);
+    // Play alarm sound
+    if (audioRef.current) {
+      audioRef.current
+        .play()
+        .catch((e) => console.log("Audio play failed:", e));
+    }
+
+    // Vibrate if supported
+    if (navigator.vibrate) {
+      navigator.vibrate([200, 100, 200, 100, 200]);
+    }
+  };
+
+  const stopAlarm = () => {
+    setIsAlarming(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  };
+
+  const fetchSummary = async () => {
+    try {
+      const sessionId = getSessionId();
+      const apiUrl = buildApiUrl(API_ENDPOINTS.SUMMARY, {
+        session_id: sessionId,
+      });
+
+      const response = await axios.get(apiUrl, { timeout: 5000 });
+      setSummary(response.data);
+      // Send summary to parent component
+      if (onSummaryReceived) {
+        onSummaryReceived(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching summary:", error);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  const getStatusColor = () => {
+    if (!isDetecting) return "text-gray-500";
+    if (isAlarming) return "text-red-500 animate-pulse";
+    if (currentStatus.includes("Drowsy")) return "text-yellow-500";
+    return "text-green-500";
+  };
+
+  const getStatusIcon = () => {
+    if (!isDetecting) return <Camera size={20} />;
+    if (currentStatus.includes("Drowsy") || isAlarming)
+      return <EyeOff size={20} />;
+    return <Eye size={20} />;
+  };
 
   return (
     <section id="detection" className="pb-20 pt-10 bg-white">
+      {/* Hidden audio element for alarm */}
+      <audio ref={audioRef} loop>
+        <source
+          src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmEcBz6X2+/JaSsFKHzK79WIFg="
+          type="audio/wav"
+        />
+      </audio>
+
       <div className="container mx-auto px-4">
         <div className="text-center mb-10" data-aos="fade-up">
           <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
@@ -24,16 +254,76 @@ const DetectionSection = ({ isDetecting, onToggleDetection }) => {
           data-aos-offset="100"
         >
           <div className="bg-gray-100 rounded-2xl p-8 shadow-xl">
-            <div className="aspect-video bg-gray-800 rounded-xl mb-6 flex items-center justify-center relative overflow-hidden">
-              {isDetecting ? (
-                <div className="text-white text-center">
-                  <Camera size={48} className="mx-auto mb-4 animate-pulse" />
-                  <p className="text-lg">Camera Active - Monitoring...</p>
-                  <div className="mt-4 flex items-center justify-center gap-2">
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-green-400">Status: Alert</span>
+            {/* Status Bar */}
+            {isDetecting && (
+              <div className="mb-6 bg-white rounded-xl p-4 shadow-lg">
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-3">
+                    <Clock size={20} className="text-blue-500" />
+                    <span className="font-semibold">
+                      Detection Time: {formatTime(detectionTime)}
+                    </span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-2 font-semibold ${getStatusColor()}`}
+                  >
+                    {getStatusIcon()}
+                    <span>{currentStatus}</span>
                   </div>
                 </div>
+
+                {closedEyeCount > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                      <EyeOff size={16} />
+                      <span className="text-sm font-medium">
+                        Eyes closed for {closedEyeCount} seconds
+                        {closedEyeCount >= 3 && " - Stay Alert!"}
+                      </span>
+                    </div>
+                    <div className="mt-2 w-full bg-yellow-200 rounded-full h-2">
+                      <div
+                        className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            (closedEyeCount / 5) * 100,
+                            100
+                          )}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {isAlarming && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
+                    <div className="flex items-center gap-2 text-red-800 animate-pulse">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <span className="font-bold">
+                        ⚠️ DROWSINESS ALERT! Wake up!
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Camera Feed */}
+            <div className="aspect-video bg-gray-800 rounded-xl mb-6 flex items-center justify-center relative overflow-hidden">
+              {isDetecting ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full object-cover rounded-xl"
+                    autoPlay
+                    muted
+                    playsInline
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                  {isAlarming && (
+                    <div className="absolute inset-0 bg-red-500 opacity-20 animate-pulse"></div>
+                  )}
+                </>
               ) : (
                 <div className="text-gray-400 text-center">
                   <Camera size={48} className="mx-auto mb-4" />
@@ -43,16 +333,9 @@ const DetectionSection = ({ isDetecting, onToggleDetection }) => {
                   </p>
                 </div>
               )}
-              <video
-                ref={videoRef}
-                className="absolute inset-0 w-full h-full object-cover rounded-xl"
-                style={{ display: isDetecting ? "block" : "none" }}
-                autoPlay
-                muted
-                playsInline
-              />
             </div>
 
+            {/* Control Button */}
             <div className="text-center">
               <button
                 onClick={onToggleDetection}
@@ -82,6 +365,71 @@ const DetectionSection = ({ isDetecting, onToggleDetection }) => {
               </button>
             </div>
           </div>
+
+          {/* Summary Section */}
+          {summary && !isDetecting && (
+            <div
+              className="mt-8 bg-white rounded-2xl p-8 shadow-xl"
+              data-aos="fade-up"
+            >
+              <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+                Detection Summary
+              </h3>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6">
+                  <h4 className="font-semibold text-gray-800 mb-4">
+                    Session Statistics
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span>Total Frames:</span>
+                      <span className="font-bold">{summary.total_frames}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Eyes Open:</span>
+                      <span className="font-bold text-green-600">
+                        {summary.opened}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Eyes Closed:</span>
+                      <span className="font-bold text-red-600">
+                        {summary.closed}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-50 to-teal-50 rounded-xl p-6">
+                  <h4 className="font-semibold text-gray-800 mb-4">
+                    Analysis Result
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span>Alert Percentage:</span>
+                      <span className="font-bold text-green-600">
+                        {summary.percentage_opened}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Drowsy Percentage:</span>
+                      <span className="font-bold text-red-600">
+                        {summary.percentage_closed}%
+                      </span>
+                    </div>
+                    <div className="mt-4 p-3 bg-white rounded-lg">
+                      <div className="text-center">
+                        <span className="text-lg font-bold">
+                          {summary.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
