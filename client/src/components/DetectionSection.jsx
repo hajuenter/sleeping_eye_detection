@@ -15,10 +15,12 @@ const DetectionSection = ({
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
   const audioRef = useRef(null);
+  const isAlarmingRef = useRef(false); // Use ref to avoid closure issues
 
   const [detectionTime, setDetectionTime] = useState(0);
   const [currentStatus, setCurrentStatus] = useState("Not Started");
   const [closedEyeCount, setClosedEyeCount] = useState(0);
+  const [openEyeCount, setOpenEyeCount] = useState(0); // Counter untuk mata terbuka
   const [isAlarming, setIsAlarming] = useState(false);
   const [summary, setSummary] = useState(null);
 
@@ -32,8 +34,10 @@ const DetectionSection = ({
     } else {
       setDetectionTime(0);
       setClosedEyeCount(0);
+      setOpenEyeCount(0);
       setCurrentStatus("Not Started");
       setIsAlarming(false);
+      isAlarmingRef.current = false; // Reset ref too
     }
     return () => {
       if (timer) clearInterval(timer);
@@ -145,22 +149,76 @@ const DetectionSection = ({
     const results = data.results || [];
     const hasClosedEyes = results.some((result) => result.class === "closed");
 
+    // console.log("Detection result:", {
+    //   hasClosedEyes,
+    //   isAlarming: isAlarmingRef.current,
+    //   closedEyeCount,
+    //   openEyeCount,
+    // }); // Debug log
+
     if (hasClosedEyes) {
+      // Reset counter mata terbuka
+      setOpenEyeCount(0);
+
       setCurrentStatus("Drowsy - Eyes Closed");
       setClosedEyeCount((prev) => {
         const newCount = prev + 1;
+        // console.log("Closed eye count:", newCount); // Debug log
         // Jika mata tertutup selama 5 detik berturut-turut, trigger alarm
-        if (newCount >= 5 && !isAlarming) {
-          startAlarm();
+        if (newCount >= 5 && !isAlarmingRef.current) {
+          // console.log("Starting alarm"); // Debug log
+          setIsAlarming(true);
+          isAlarmingRef.current = true; // Update ref
+
+          // Play alarm sound
+          if (audioRef.current) {
+            audioRef.current
+              .play()
+              .catch((e) => console.log("Audio play failed:", e));
+          }
+          // Vibrate if supported
+          if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200, 100, 200]);
+          }
         }
         return newCount;
       });
     } else {
-      setCurrentStatus("Alert - Eyes Open");
+      // Reset counter mata tertutup
       setClosedEyeCount(0);
-      if (isAlarming) {
-        stopAlarm();
-      }
+
+      setCurrentStatus("Alert - Eyes Open");
+
+      // Jika sedang alarm, mulai hitung mundur untuk menghentikan alarm
+      setOpenEyeCount((prev) => {
+        const newCount = prev + 1;
+        // console.log(
+        //   "Open eye count:",
+        //   newCount,
+        //   "isAlarming:",
+        //   isAlarmingRef.current
+        // ); // Debug log
+
+        // Jika mata terbuka selama 5 detik berturut-turut dan sedang alarm, hentikan alarm
+        if (newCount >= 5 && isAlarmingRef.current) {
+          // console.log("Stopping alarm after 5 seconds open"); // Debug log
+          setIsAlarming(false);
+          isAlarmingRef.current = false; // Update ref
+
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+          }
+          return 0; // Reset counter setelah alarm dihentikan
+        }
+
+        // Jika tidak sedang alarm, reset counter
+        if (!isAlarmingRef.current) {
+          return 0;
+        }
+
+        return newCount;
+      });
     }
   };
 
@@ -180,7 +238,10 @@ const DetectionSection = ({
   };
 
   const stopAlarm = () => {
+    // console.log("stopAlarm function called"); // Debug log
     setIsAlarming(false);
+    isAlarmingRef.current = false; // Update ref
+    setOpenEyeCount(0); // Reset counter mata terbuka
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -293,6 +354,26 @@ const DetectionSection = ({
                   </div>
                 )}
 
+                {/* Progress bar untuk menghentikan alarm */}
+                {isAlarming && openEyeCount > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <Eye size={16} />
+                      <span className="text-sm font-medium">
+                        Eyes open for {openEyeCount} seconds - Keep it up!
+                      </span>
+                    </div>
+                    <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min((openEyeCount / 5) * 100, 100)}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
                 {isAlarming && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
                     <div className="flex items-center gap-2 text-red-800 animate-pulse">
@@ -318,9 +399,6 @@ const DetectionSection = ({
                     playsInline
                   />
                   <canvas ref={canvasRef} className="hidden" />
-                  {isAlarming && (
-                    <div className="absolute inset-0 bg-red-500 opacity-20 animate-pulse"></div>
-                  )}
                 </>
               ) : (
                 <div className="text-gray-400 text-center">

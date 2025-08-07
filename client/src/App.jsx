@@ -23,7 +23,7 @@ const App = () => {
     });
 
     const sessionId = getSessionId();
-    console.log("📌 Session ID:", sessionId);
+    // console.log("📌 Session ID:", sessionId);
   }, []);
 
   const handleStartDetection = () => {
@@ -44,14 +44,12 @@ const App = () => {
       setDetectionStartTime(Date.now());
       setSummary(null); // Clear previous summary
       setToast({
-        message:
-          "Detection started! Stay alert and keep your face visible to the camera.",
+        message: "Detection started! Face the camera.",
         type: "success",
       });
     } catch (error) {
       setToast({
-        message:
-          "Camera access denied. Please allow camera access to use detection.",
+        message: "Camera access denied. Please allow camera access.",
         type: "error",
       });
     }
