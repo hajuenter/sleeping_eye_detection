@@ -3,6 +3,7 @@ import { Camera, Play, Pause, Clock, Eye, EyeOff } from "lucide-react";
 import { getSessionId } from "../utils/session";
 import { buildApiUrl, API_ENDPOINTS } from "../config/api";
 import axios from "axios";
+import { music } from "../assets/assets";
 
 const DetectionSection = ({
   isDetecting,
@@ -230,10 +231,7 @@ const DetectionSection = ({
     <section id="detection" className="pb-20 pt-10 bg-white">
       {/* Hidden audio element for alarm */}
       <audio ref={audioRef} loop>
-        <source
-          src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmEcBz6X2+/JaSsFKHzK79WIFg="
-          type="audio/wav"
-        />
+        <source src={music.alarm} type="audio/wav" />
       </audio>
 
       <div className="container mx-auto px-4">

@@ -7,6 +7,9 @@ import {
   Car,
   BarChart3,
 } from "lucide-react";
+import alarm from "./alarm.mp3";
+
+export const music = { alarm };
 
 export const benefits = [
   {
